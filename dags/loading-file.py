@@ -2,8 +2,10 @@ from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 from kaggle.api.kaggle_api_extended import KaggleApi
 from google.cloud import storage, bigquery
+import logging
 from datetime import datetime, timedelta
 from config import BUCKET_NAME, FILE_NAME, DATASET_ID, TABLE_ID, K_DATASET, KAGGLE2BQ_DAG
+from airflow.exceptions import AirflowFailException
 
 default_args = {
     'owner': 'airflow',
@@ -19,46 +21,65 @@ dag = DAG(
 )
 
 def download_from_kaggle():
-    api = KaggleApi()
-    api.authenticate()
-    api.dataset_download_files(dataset=K_DATASET, path='/tmp', unzip=True)
+    try:
+        api = KaggleApi()
+        api.authenticate()
+        api.dataset_download_files(dataset=K_DATASET, path='/tmp', unzip=True)
+        logging.info("File downloaded successfully.")
+    except Exception as e:
+        logging.error(f"Error downloading file from Kaggle: {e}")
+        raise AirflowFailException
 
 def upload_to_gcs():
-    client = storage.Client()
-    bucket = client.get_bucket(BUCKET_NAME)
-    blob = bucket.blob(FILE_NAME)
-    blob.upload_from_filename('/tmp/' + FILE_NAME)
+    try:
+        client = storage.Client()
+        bucket = client.get_bucket(BUCKET_NAME)
+        blob = bucket.blob(FILE_NAME)
+        blob.upload_from_filename('/tmp/' + FILE_NAME)
+        logging.info("File uploaded successfully.")
+    except Exception as e:
+        logging.error(f"Error uploading file to GCS: {e}")
+        raise AirflowFailException
 
 # if dataset doesn't exist
 #def create_bigquery_dataset():
-#    client = bigquery.Client()
-#    dataset_ref = client.dataset(DATASET_ID)
-#    dataset = bigquery.Dataset(dataset_ref)
-#    dataset.location = 'EU' 
-#    dataset = client.create_dataset(dataset)
+#    try:        
+#        client = bigquery.Client()
+#        dataset_ref = client.dataset(DATASET_ID)
+#        dataset = bigquery.Dataset(dataset_ref)
+#        dataset.location = 'EU' 
+#        dataset = client.create_dataset(dataset)
+#        logging.info("Dataset successfully created.")       
+#    except Exception as e:
+#        logging.error(f"Error creating BQ dataset: {e}")
+#        raise AirflowFailException    
 
 def load_to_bigquery():
-    client = bigquery.Client()
-    dataset_ref = client.dataset(DATASET_ID)
-    table_ref = dataset_ref.table(TABLE_ID)
-    job_config = bigquery.LoadJobConfig(
-        schema=[
-            bigquery.SchemaField("entity", "STRING"),
-            bigquery.SchemaField("code", "STRING"),
-            bigquery.SchemaField("year", "INTEGER"),
-            bigquery.SchemaField("terrorist_attacks", "INTEGER"),
-        ],
-        source_format=bigquery.SourceFormat.CSV,
-        skip_leading_rows=1,
-        autodetect=False,
-        write_disposition='WRITE_TRUNCATE'
-    )
-    
-    uri = f"gs://{BUCKET_NAME}/{FILE_NAME}"
-    load_job = client.load_table_from_uri(
-        uri, table_ref, job_config=job_config
-    )
-    load_job.result()
+    try:    
+        client = bigquery.Client()
+        dataset_ref = client.dataset(DATASET_ID)
+        table_ref = dataset_ref.table(TABLE_ID)
+        job_config = bigquery.LoadJobConfig(
+            schema=[
+                bigquery.SchemaField("entity", "STRING"),
+                bigquery.SchemaField("code", "STRING"),
+                bigquery.SchemaField("year", "INTEGER"),
+                bigquery.SchemaField("terrorist_attacks", "INTEGER"),
+            ],
+            source_format=bigquery.SourceFormat.CSV,
+            skip_leading_rows=1,
+            autodetect=False,
+            write_disposition='WRITE_TRUNCATE'
+        )
+        
+        uri = f"gs://{BUCKET_NAME}/{FILE_NAME}"
+        load_job = client.load_table_from_uri(
+            uri, table_ref, job_config=job_config
+        )
+        load_job.result()
+    except Exception as e:
+        logging.error(f"Error loading to BQ: {e}")
+        raise AirflowFailException
 
 with dag:
     download_task = PythonOperator(
