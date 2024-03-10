@@ -11,6 +11,6 @@ In case of an error during execution, DAG will display an error in the log and s
 
 DAG works with kaggle token for API calls, uses Google Cloud Credentials to execute tasks associated with GCS and BigQuery. When downloading data from Kaggle, DAG unzips the file. During loading the table into BigQuery, it defines the schema and column names in a suitable format.
 
-The table contains data on terrorist acts around the world in the years 1960-2021. In the case of uploading another dataset, it is necessary to modify the hardcoded schema, which is not dynamic. Thanks to the configuration file, it is possible to edit the variables defining the GCP project, the name of the file, the link to the dataset, etc.
+The table contains data on terrorist attacks around the world in the years 1960-2021. In the case of uploading another dataset, it is necessary to modify the hardcoded schema, which is not dynamic. Thanks to the configuration file, it is possible to edit the variables defining the GCP project, the name of the file, the link to the dataset, etc.
 
 Dataset: <a href="https://www.kaggle.com/datasets/willianoliveiragibin/terrorism-in-world/data">Terrorism_in_world</a> 
